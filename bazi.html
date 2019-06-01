@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>bazi</title>
+    <style>
+        body {
+        @include display(flex);
+        @include align-content(center);
+            color: #353535;
+            min-height: 100vh;
+            font-family: 'Open Sans', sans-serif;
+            font-size: 4px;
+            text-align: center;
+            background-color: lightgreen;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        #overlay {
+            position: absolute;
+            z-index: 1;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 1;
+            background-color: #000000;
+            color: #ffffff;
+        }
+
+        #overlay > div {
+            text-align: center;
+        }
+
+        #overlay > div > button {
+            height: 200px;
+            width: 400px;
+            font-size: x-large;
+            background: transparent;
+            color: #ffffff;
+            border: 5px;
+            cursor: pointer;
+        }
+
+        #overlay > div > p {
+            color: #777777;
+            font-size: 40px;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%
+        }
+
+        #web-gl {
+            height: 100%;
+            width: 100%;
+        }
+    </style>
+
+    <script type="text/javascript" src="lib/three.js"></script>
+    <script type="text/javascript" src="lib/OBJLoader.js"></script>
+    <script type="text/javascript" src="lib/TrackballControls.js"></script>
+
+</head>
+<body>
+<div id="overlay">
+    <div>
+        <button id="startButton">Click to Play !</button>
+    </div>
+</div>
+<div id="web-gl">
+</div>
+<script id="scriptScene0" type="text/javascript">
+
+
+
+    var startButton = document.getElementById('startButton');
+    var width = window.innerWidth;
+    var height = window.innerHeight;
+    var scene, camera, renderer, time;
+    var rayCaster = new THREE.Raycaster();
+    var mouse = new THREE.Vector2(), SELECTED;
+    var container, controls;
+    var objects = [];
+    var audioLoader;
+    var box, boxGeometry, boxMaterial;
+    var soundX;
+    var mouseacive=true;
+    var texture;
+    var particles, geometry, materials = [], parameters, i, color, sprite, size;
+
+    //
+    startButton.addEventListener("click", init, false);
+
+    //
+    function init() {
+        //
+        var overlay = document.getElementById('overlay');
+        overlay.remove();
+        //
+        setTimeout(end,5000);
+
+        //
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+
+
+        //
+        renderer = new THREE.WebGLRenderer({antialias: true});
+        renderer.setClearColor(new THREE.Color(0xddffddff));
+        renderer.setSize(width, height);
+        container = document.getElementById("web-gl");
+        container.appendChild(renderer.domElement);
+
+
+        //
+        objectLoader = new THREE.ObjectLoader();
+        objectLoader.load("scene/scene.json", function (obj) {
+            obj.traverse(function (mesh) {
+                if (mesh instanceof THREE.Mesh) {
+
+                    objects.push(mesh);
+                }
+            });
+            scene.add(obj);
+        });
+
+
+        //
+        camera.position.x = -2;
+        camera.position.y = 40;
+        camera.position.z = 130;
+        camera.lookAt(scene.position);
+
+
+
+        //
+        renderer.domElement.addEventListener('mousedown', onDocumentMouseDown, false);
+        renderer.domElement.addEventListener('mouseup', onDocumentMouseUp, false);
+
+
+        //
+
+        var listener = new THREE.AudioListener();
+        audioLoader = new THREE.AudioLoader();
+        soundX = new THREE.Audio(listener);
+        audioLoader.load('sound/sound.mp3', function (buffer) {
+            soundX.setBuffer(buffer);
+            soundX.play();
+        });
+
+        //
+        var spotLight = new THREE.SpotLight(0xaaffbbaa);
+        spotLight.angle = 0.89;
+        spotLight.penumbra = .75;
+        spotLight.position.set(0, 50, 20);
+        scene.add(spotLight);
+
+        //
+        var ambiColor = "#ffffaab";
+        var ambientLight = new THREE.AmbientLight(ambiColor);
+        scene.add(ambientLight);
+
+
+        //
+        geometry = new THREE.Geometry();
+        var textureLoader = new THREE.TextureLoader();
+        sprite2 = textureLoader.load("texture/snowflake2.png");
+        sprite6 = textureLoader.load("texture/snow.png");
+
+
+        for (i = 0; i < 10000; i++) {
+            var vertex = new THREE.Vector3();
+            vertex.x = Math.random() * 2000 - 1000;
+            vertex.y = Math.random() * 2000 - 1000;
+            vertex.z = Math.random() * 2000 - 1000;
+            geometry.vertices.push(vertex);
+        }
+        parameters = [
+            [[1.0, 0.2, 0.5], sprite2, 7],
+            [[0.75, 0, 0.5], sprite6, 5]
+        ];
+        for (i = 0; i < parameters.length; i++) {
+            color = parameters[i][0];
+            sprite = parameters[i][1];
+            size = parameters[i][2];
+
+            materials[i] = new THREE.PointCloudMaterial({
+                size: size,
+                map: sprite,
+                blending: THREE.AdditiveBlending,
+                depthTest: false,
+                transparent: true
+
+            });
+            materials[i].color.setHSL(color[0], color[1], color[2]);
+            particles = new THREE.Points(geometry, materials[i]);
+            particles.rotation.x = Math.random() * 6;
+            particles.rotation.y = Math.random() * 6;
+            particles.rotation.z = Math.random() * 6;
+            scene.add(particles);
+        }
+
+        window.addEventListener('resize', onWindowResize, false);
+        //
+        animate();
+    }
+
+
+    function onWindowResize() {
+
+        renderer.setSize(window.innerWidth, window.innerHeight);
+
+    }
+
+
+    function onDocumentMouseDown(event) {
+
+        if (mouseacive==false){
+
+            return;
+        }
+
+        event.preventDefault();
+
+        mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
+        mouse.y = -( event.clientY / window.innerHeight ) * 2 + 1;
+        rayCaster.setFromCamera(mouse, camera);
+
+
+        var intersects = rayCaster.intersectObjects(objects);
+        if (intersects.length > 0) {
+
+            SELECTED = intersects[0].object;
+            //hazf ajsam
+
+            SELECTED.geometry.dispose();
+            SELECTED.visible=false;
+        }
+
+
+    }
+
+    function end() {
+
+        mouseacive=false;
+
+    }
+
+    function onDocumentMouseUp(event) {
+
+        event.preventDefault();
+
+        SELECTED = null;
+    }
+
+    function animate() {
+
+        requestAnimationFrame(animate);
+        render();
+
+
+
+
+        for (i = 0; i < scene.children.length; i++) {
+            var object = scene.children[i];
+            if (object instanceof THREE.Points) {
+                object.rotation.y = time * ( i < 400 ? i + 1 : -( i + 1 ) );
+
+                var time = Date.now() * 0.00005;
+            }
+        }
+
+
+
+
+        //
+        time = Date.now() / 600;
+        objects[0].scale.set(20, 20, 20);
+        objects[0].position.y = Math.sin(time+3) * 70 + 20;
+
+
+
+        objects[1].scale.set(20, 20, 20);
+        objects[1].position.x =-70;
+        objects[1].position.y = Math.sin(time+4.5) * 50 + 25;
+
+        objects[2].scale.set(20, 20, 20);
+        objects[2].position.x =-60;
+
+        objects[3].scale.set(20, 20, 20);
+        objects[3].position.x =17;
+        objects[3].position.y = Math.sin(time+1) * 60 + 10;
+
+        objects[4].scale.set(20, 20, 20);
+        objects[4].position.x =20;
+        objects[4].position.y = Math.sin(time+4.5) * 20 + 5;
+
+        objects[5].scale.set(20, 20, 20);
+        objects[5].position.x =40;
+
+        objects[6].scale.set(20, 20, 20);
+        objects[6].position.x =67;
+
+        objects[7].scale.set(20, 20, 20);
+        objects[7].position.x =-25;
+
+        objects[8].scale.set(20, 20, 20);
+        objects[8].position.x =-45;
+        objects[8].position.y = Math.sin(time+2) * 80 + 10;
+
+        objects[9].scale.set(20, 20, 20);
+        objects[9].position.x =-20;
+        objects[9].position.y = Math.sin(time+3) * 40 + 10;
+
+        objects[10].scale.set(20, 20, 20);
+        objects[10].position.x =75;
+        objects[10].position.y = Math.sin(time+4.5) * 50 + 20;
+
+        objects[11].scale.set(20, 20, 20);
+        objects[11].position.x =35;
+        objects[11].position.y = Math.sin(time+7) * 30 + 15;
+
+        objects[12].scale.set(20, 20, 20);
+        objects[12].position.x =52;
+        objects[12].position.y = Math.sin(time+2) * 50 + 25;
+
+
+    }
+
+    function render() {
+
+        renderer.render(scene, camera);
+    }
+</script>
+</body>
+</html>
